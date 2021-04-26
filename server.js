@@ -14,6 +14,7 @@ connectDB();
 app.use(express.json({ extended: false }));
 app.use(cors());
 
+app.get("/", (req, res) => res.send("Welcome to Articles Feed API"));
 app.get("/status", (req, res) => res.send("API up and Running"));
 
 //Defining Routes
