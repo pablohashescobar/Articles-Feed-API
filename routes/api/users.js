@@ -64,7 +64,7 @@ router.post(
         });
       }
 
-      const otp = Math.floor(Math.random() * 1000000)
+      const otp = Math.floor(Math.random() * 1000000);
 
       let user = new User({
         firstname,
@@ -199,18 +199,12 @@ router.put(
   }
 );
 
-
 //@route POST api/users/verify
 //@desc Verify a User
 //@acess Private
 router.post(
   "/verify",
-  [
-    auth,
-    [
-      check("otp", "Please Enter a valid OTP").not().isEmpty(),
-    ],
-  ],
+  [auth, [check("otp", "Please Enter a valid OTP").not().isEmpty()]],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -241,5 +235,59 @@ router.post(
     }
   }
 );
+
+// @route    PUT api/users/follow/:id
+// @desc     Follow a user
+// @access   Private
+router.put("/follow/:id", [auth, checkObjectId], async (req, res) => {
+  try {
+    const followingUser = await User.findById(req.user.id);
+    const followedUser = await User.findById(req.params.id);
+
+    // Check if user is not the same user that sent the request
+    if (req.params.id === req.user.id) {
+      return res
+        .status(400)
+        .json({ errors: [{ msg: "Can't follow yourself!" }] });
+    }
+
+    // Check and remove following from Req User's list if already followed
+    if (
+      followingUser.following.some(
+        (iterator) => iterator.user.toString() === req.params.id
+      )
+    ) {
+      followingUser.following = followingUser.following.filter(
+        ({ user }) => user.toString() !== req.params.id
+      );
+
+      await followingUser.save();
+
+      // Remove follower from Param User's list if already following
+      followedUser.followers = followedUser.followers.filter(
+        ({ user }) => user.toString() !== req.user.id
+      );
+
+      await followedUser.save();
+
+      return res.json(followingUser);
+    }
+
+    // Else Update following and followed lists
+    if (followingUser && followedUser) {
+      //Save the new like
+      followingUser.following.unshift({ user: req.params.id });
+      followedUser.followers.unshift({ user: req.user.id });
+
+      await followingUser.save();
+      await followedUser.save();
+
+      return res.json(article);
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
 
 module.exports = router;
