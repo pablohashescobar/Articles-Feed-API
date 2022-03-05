@@ -5,7 +5,7 @@ const { check, validationResult } = require("express-validator");
 const bcrypt = require("bcryptjs");
 
 const User = require("../../models/User");
-const Article = require("../../models/Article");
+const sendMailer = require("../../config/mailer");
 //middleware
 const auth = require("../../middleware/auth");
 
@@ -64,6 +64,8 @@ router.post(
         });
       }
 
+      const otp = Math.floor(Math.random() * 1000000)
+
       let user = new User({
         firstname,
         lastname,
@@ -72,6 +74,8 @@ router.post(
         date_of_birth,
         article_preferences,
         password,
+        otp: otp,
+        is_verified: false,
       });
 
       //Encrypt password
@@ -80,6 +84,17 @@ router.post(
       user.password = await bcrypt.hash(password, salt);
 
       await user.save();
+
+      //Send OTP to user's email
+      const mailOptions = {
+        from: "devinfoster1210@gmail.com",
+        to: email,
+        subject: "Verify your account",
+        text: `Your OTP is ${otp}`,
+      };
+
+      //Send mail
+      await sendMailer(mailOptions);
 
       //Return JWT
       const payload = {
@@ -176,6 +191,49 @@ router.put(
         date_of_birth,
         article_preferences,
       });
+      //Catching Error
+    } catch (error) {
+      console.log(error);
+      res.status(500).send("Internal Server Error");
+    }
+  }
+);
+
+
+//@route POST api/users/verify
+//@desc Verify a User
+//@acess Private
+router.post(
+  "/verify",
+  [
+    auth,
+    [
+      check("otp", "Please Enter a valid OTP").not().isEmpty(),
+    ],
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      console.log(errors);
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const { otp } = req.body;
+    try {
+      //See if the user exists
+      user = await User.findById(req.user.id);
+      if (user.otp === otp) {
+        user.is_verified = true;
+        user.otp = null;
+        await user.save();
+        return res.json({
+          is_verified: true,
+        });
+      } else {
+        return res.status(400).json({
+          errors: [{ msg: "OTP does not match" }],
+        });
+      }
       //Catching Error
     } catch (error) {
       console.log(error);

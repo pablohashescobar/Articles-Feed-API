@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { check, validationResult } = require("express-validator");
 const auth = require("../../middleware/auth");
+const verify = require("../../middleware/verifiedCheck");
 const checkObjectId = require("../../middleware/checkObjectId");
 
 const Article = require("../../models/Article");
@@ -14,6 +15,7 @@ router.post(
   "/create",
   [
     auth,
+    verify,
     [
       check("article_text", "Text is required").not().isEmpty(),
       check("article_name", "Name is required").not().isEmpty(),
