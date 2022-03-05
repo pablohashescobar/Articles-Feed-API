@@ -35,14 +35,20 @@ const UserSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  otp: {
-    type: Number,
-    default: null,
-  },
   is_verified: {
     type: Boolean,
     default: false,
   },
-});
+  otp: {
+    type: Number,
+    default: null,
+  },
+  otp_expiry: {
+    type: Date,
+    default: null,
+  },
+},
+  { timestamps: { createdAt: 'created_at', updatedAt: 'updated_at' } },
+);
 
 module.exports = User = mongoose.model("user", UserSchema);
