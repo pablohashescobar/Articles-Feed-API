@@ -226,13 +226,16 @@ router.post(
     try {
       //See if the user exists
       user = await User.findById(req.user.id);
-      if (user.otp === otp && user.otp_expiry > Date.now()) {
-        user.is_verified = true;
-        user.otp = null;
-        await user.save();
-        return res.json({
-          is_verified: true,
-        });
+      if (user.otp === parseInt(otp)) {
+        if (user.otp_expiry > Date.now()) {
+          user.is_verified = true;
+          user.otp = null;
+          const user = await user.save();
+          return res.json({
+            is_verified: true,
+          });
+        } else { return res.status(400).json({ errors: [{ msg: "OTP has expired" }] }) }
+
       } else {
         return res.status(400).json({
           errors: [{ msg: "OTP does not match" }],

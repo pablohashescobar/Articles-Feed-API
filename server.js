@@ -36,6 +36,7 @@ let routeLogger = (req, res, next) => { //middleware function
         current_datetime.getMinutes() +
         ":" +
         current_datetime.getSeconds();
+
     let method = req.method;
     let url = req.url;
     let status = res.statusCode;
