@@ -11,7 +11,7 @@ const User = require("../../models/User");
 //@acess Private
 router.get("/", auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select("-password");
+    const user = await User.findById(req.user.id).select("-password").select("-otp").select("-otp_expiry");
     res.json(user);
   } catch (err) {
     console.error(err);
