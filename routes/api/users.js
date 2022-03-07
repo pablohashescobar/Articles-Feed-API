@@ -226,7 +226,7 @@ router.post(
     try {
       //See if the user exists
       user = await User.findById(req.user.id);
-      if (user.otp === otp) {
+      if (user.otp === otp && user.otp_expiry > Date.now()) {
         user.is_verified = true;
         user.otp = null;
         await user.save();

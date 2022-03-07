@@ -10,11 +10,8 @@ module.exports = async function (req, res, next) {
         if (!(user.is_verified)) {
 
             return res.status(401).json({ msg: "User is not verified" });
-        } else if (Date.now() > user.otp_expiry) {
-            return res.status(401).json({ msg: "OTP has expired" });
-        } else {
-            next();
         }
+        next();
 
     } catch (err) {
         console.error(err.message);
