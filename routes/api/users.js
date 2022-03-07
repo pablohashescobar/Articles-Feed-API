@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
+const checkObjectId = require("../../middleware/checkObjectId");
 const bcrypt = require("bcryptjs");
 
 const User = require("../../models/User");
@@ -260,7 +261,7 @@ router.put("/follow/:id", [auth, checkObjectId], async (req, res) => {
         .json({ errors: [{ msg: "Can't follow yourself!" }] });
     }
 
-    // Check and remove following from Req User's list if already followed
+    // Check and remove following user from Req User's list if already followed
     if (
       followingUser.following.some(
         (iterator) => iterator.user.toString() === req.params.id
@@ -291,13 +292,17 @@ router.put("/follow/:id", [auth, checkObjectId], async (req, res) => {
       await followingUser.save();
       await followedUser.save();
 
-      return res.json(article);
+      return res.json(followingUser);
     }
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 });
+
+// @route    PUT api/users/otp/generate
+// @desc     Generate OTP
+// @access   Private
 router.get("/otp/generate", [auth], async (req, res) => {
   try {
     //See if the user exists
