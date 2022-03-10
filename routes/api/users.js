@@ -208,7 +208,7 @@ router.put(
 //@desc Verify a User
 //@acess Private
 router.post(
-  "/verify",
+  "/verify-otp",
   [
     auth,
     [
@@ -225,20 +225,27 @@ router.post(
     const { otp } = req.body;
     try {
       //See if the user exists
-      user = await User.findById(req.user.id);
-      if (user.otp === parseInt(otp)) {
-        if (user.otp_expiry > Date.now()) {
-          user.is_verified = true;
-          user.otp = null;
-          const user = await user.save();
-          return res.json({
-            is_verified: true,
-          });
-        } else { return res.status(400).json({ errors: [{ msg: "OTP has expired" }] }) }
+      const user = await User.findById(req.user.id);
 
+      if (user) {
+        if (user.otp === parseInt(otp)) {
+          if (user.otp_expiry > Date.now()) {
+            user.is_verified = true;
+            user.otp = null;
+            await user.save();
+            return res.json({
+              is_verified: true,
+            });
+          } else { return res.status(400).json({ errors: [{ msg: "OTP has expired" }] }) }
+
+        } else {
+          return res.status(400).json({
+            errors: [{ msg: "OTP does not match" }],
+          });
+        }
       } else {
         return res.status(400).json({
-          errors: [{ msg: "OTP does not match" }],
+          errors: [{ msg: "User does not exist" }],
         });
       }
       //Catching Error
@@ -250,14 +257,14 @@ router.post(
 );
 
 router.get(
-  "/otp/generate",
+  "/resend-otp",
   [
     auth,
   ],
   async (req, res) => {
     try {
       //See if the user exists
-      user = await User.findById(req.user.id);
+      const user = await User.findById(req.user.id);
       const current_time = new Date();
       const otp_expiry = current_time.setMinutes(current_time.getMinutes() + 30);
       const otp = Math.floor(Math.random() * 1000000)
