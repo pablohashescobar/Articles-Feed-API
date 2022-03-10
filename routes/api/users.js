@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
+const checkObjectId = require("../../middleware/checkObjectId");
 const bcrypt = require("bcryptjs");
 
 const User = require("../../models/User");
@@ -65,9 +66,10 @@ router.post(
       }
 
       const current_time = new Date();
-      const otp_expiry = current_time.setMinutes(current_time.getMinutes() + 30);
-      const otp = Math.floor(Math.random() * 1000000)
-
+      const otp_expiry = current_time.setMinutes(
+        current_time.getMinutes() + 30
+      );
+      const otp = Math.floor(Math.random() * 1000000);
 
       let user = new User({
         firstname,
@@ -203,18 +205,12 @@ router.put(
   }
 );
 
-
 //@route POST api/users/verify
 //@desc Verify a User
 //@acess Private
 router.post(
   "/verify-otp",
-  [
-    auth,
-    [
-      check("otp", "Please Enter a valid OTP").not().isEmpty(),
-    ],
-  ],
+  [auth, [check("otp", "Please Enter a valid OTP").not().isEmpty()]],
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -236,8 +232,11 @@ router.post(
             return res.json({
               is_verified: true,
             });
-          } else { return res.status(400).json({ errors: [{ msg: "OTP has expired" }] }) }
-
+          } else {
+            return res
+              .status(400)
+              .json({ errors: [{ msg: "OTP has expired" }] });
+          }
         } else {
           return res.status(400).json({
             errors: [{ msg: "OTP does not match" }],
@@ -256,42 +255,127 @@ router.post(
   }
 );
 
-router.get(
-  "/resend-otp",
-  [
-    auth,
-  ],
-  async (req, res) => {
-    try {
-      //See if the user exists
-      const user = await User.findById(req.user.id);
-      const current_time = new Date();
-      const otp_expiry = current_time.setMinutes(current_time.getMinutes() + 30);
-      const otp = Math.floor(Math.random() * 1000000)
+router.get("/resend-otp", [auth], async (req, res) => {
+  try {
+    //See if the user exists
+    const user = await User.findById(req.user.id);
+    const current_time = new Date();
+    const otp_expiry = current_time.setMinutes(current_time.getMinutes() + 30);
+    const otp = Math.floor(Math.random() * 1000000);
 
-      user.otp = otp;
-      user.otp_expiry = otp_expiry;
-      await user.save();
-      //Send OTP to user's email
-      const mailOptions = {
-        from: "devinfoster1210@gmail.com",
-        to: user.email,
-        subject: "Verify your account",
-        text: `Your OTP is ${otp}`,
-      };
+    user.otp = otp;
+    user.otp_expiry = otp_expiry;
+    await user.save();
+    //Send OTP to user's email
+    const mailOptions = {
+      from: "devinfoster1210@gmail.com",
+      to: user.email,
+      subject: "Verify your account",
+      text: `Your OTP is ${otp}`,
+    };
 
-      //Send mail
-      await sendMailer(mailOptions);
+    //Send mail
+    await sendMailer(mailOptions);
 
-      return res.json({
-        "message": "OTP sent to your email"
-      });
+    return res.json({
+      message: "OTP sent to your email",
+    });
 
-      //Catching Error
-    } catch (error) {
-      console.log(error);
-      res.status(500).send("Internal Server Error");
+    //Catching Error
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+// @route    PUT api/users/follow/:id
+// @desc     Follow a user
+// @access   Private
+router.put("/follow/:id", [auth, checkObjectId], async (req, res) => {
+  try {
+    const followingUser = await User.findById(req.user.id);
+    const followedUser = await User.findById(req.params.id);
+
+    // Check if user is not the same user that sent the request
+    if (req.params.id === req.user.id) {
+      return res
+        .status(400)
+        .json({ errors: [{ msg: "Can't follow yourself!" }] });
     }
-  });
+
+    // Check and remove following user from Req User's list if already followed
+    if (
+      followingUser.following.some(
+        (iterator) => iterator.user.toString() === req.params.id
+      )
+    ) {
+      followingUser.following = followingUser.following.filter(
+        ({ user }) => user.toString() !== req.params.id
+      );
+
+      await followingUser.save();
+
+      // Remove follower from Param User's list if already following
+      followedUser.followers = followedUser.followers.filter(
+        ({ user }) => user.toString() !== req.user.id
+      );
+
+      await followedUser.save();
+
+      return res.json(followingUser);
+    }
+
+    // Else Update following and followed lists
+    if (followingUser && followedUser) {
+      //Save the new like
+      followingUser.following.unshift({ user: req.params.id });
+      followedUser.followers.unshift({ user: req.user.id });
+
+      await followingUser.save();
+      await followedUser.save();
+
+      return res.json(followingUser);
+    }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+// @route    PUT api/users/otp/generate
+// @desc     Generate OTP
+// @access   Private
+router.get("/otp/generate", [auth], async (req, res) => {
+  try {
+    //See if the user exists
+    user = await User.findById(req.user.id);
+    const current_time = new Date();
+    const otp_expiry = current_time.setMinutes(current_time.getMinutes() + 30);
+    const otp = Math.floor(Math.random() * 1000000);
+
+    user.otp = otp;
+    user.otp_expiry = otp_expiry;
+    await user.save();
+    //Send OTP to user's email
+    const mailOptions = {
+      from: "devinfoster1210@gmail.com",
+      to: user.email,
+      subject: "Verify your account",
+      text: `Your OTP is ${otp}`,
+    };
+
+    //Send mail
+    await sendMailer(mailOptions);
+
+    return res.json({
+      message: "OTP sent to your email",
+    });
+
+    //Catching Error
+  } catch (error) {
+    console.log(error);
+    res.status(500).send("Internal Server Error");
+  }
+});
 
 module.exports = router;
