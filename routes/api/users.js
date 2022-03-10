@@ -342,40 +342,4 @@ router.put("/follow/:id", [auth, checkObjectId], async (req, res) => {
   }
 });
 
-// @route    PUT api/users/otp/generate
-// @desc     Generate OTP
-// @access   Private
-router.get("/otp/generate", [auth], async (req, res) => {
-  try {
-    //See if the user exists
-    user = await User.findById(req.user.id);
-    const current_time = new Date();
-    const otp_expiry = current_time.setMinutes(current_time.getMinutes() + 30);
-    const otp = Math.floor(Math.random() * 1000000);
-
-    user.otp = otp;
-    user.otp_expiry = otp_expiry;
-    await user.save();
-    //Send OTP to user's email
-    const mailOptions = {
-      from: "devinfoster1210@gmail.com",
-      to: user.email,
-      subject: "Verify your account",
-      text: `Your OTP is ${otp}`,
-    };
-
-    //Send mail
-    await sendMailer(mailOptions);
-
-    return res.json({
-      message: "OTP sent to your email",
-    });
-
-    //Catching Error
-  } catch (error) {
-    console.log(error);
-    res.status(500).send("Internal Server Error");
-  }
-});
-
 module.exports = router;
