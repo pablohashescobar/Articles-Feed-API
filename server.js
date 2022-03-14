@@ -14,6 +14,8 @@ connectDB();
 app.use(express.json({ extended: false }));
 
 app.use(cors());
+
+//Loggers
 const getActualRequestDurationInMilliseconds = start => {
     const NS_PER_SEC = 1e9; //  convert to nanoseconds
     const NS_TO_MS = 1e6; // convert to milliseconds
