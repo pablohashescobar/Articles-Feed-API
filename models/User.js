@@ -49,6 +49,18 @@ const UserSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    password_otp: {
+      type: Number,
+      default: null,
+    },
+    password_otp_expiry: {
+      type: Date,
+      default: null,
+    },
+    password_uuid: {
+      type: String,
+      default: null,
+    },
     followers: [
       {
         user: {

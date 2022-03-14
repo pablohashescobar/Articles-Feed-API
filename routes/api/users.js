@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
+const { v4: uuidv4 } = require('uuid');
 const { check, validationResult } = require("express-validator");
 const checkObjectId = require("../../middleware/checkObjectId");
 const bcrypt = require("bcryptjs");
@@ -336,6 +337,102 @@ router.put("/follow/:id", [auth, checkObjectId], async (req, res) => {
 
       return res.json(followingUser);
     }
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // See if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ errors: [{ msg: "User does not exist" }] });
+    }
+    const current_time = new Date();
+    const otp_expiry = current_time.setMinutes(current_time.getMinutes() + 10);
+    const otp = Math.floor(Math.random() * 1000000)
+    const user_uuid = uuidv4();
+
+    user.password_otp = otp;
+    user.password_otp_expiry = otp_expiry;
+    user.password_uuid = user_uuid;
+    await user.save();
+
+    // Send the email
+    const resetUrl = `${req.protocol}://${req.get(
+      "host"
+    )}/reset-password/${user_uuid}/${otp}`;
+
+    const mailOptions = {
+      from: "devinfoster1210@gmail.com",
+      to: user.email,
+      subject: "Reset Password",
+      text: `You are receiving this email because you (or someone else) have requested the reset of the password for your account.\n\n
+      Please click on the following link, or paste this into your browser to complete the process:\n\n
+      ${resetUrl}\n\n
+      If you did not request this, please ignore this email and your password will remain unchanged.\n`,
+    };
+
+    await sendMailer(mailOptions);
+
+    res.json({ msg: "Email sent" });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
+router.post("/reset-password/:password_uuid/:otp", async (req, res) => {
+  try {
+    const { password, confirm_password } = req.body;
+    const { password_uuid, otp } = req.params;
+
+    // See if user exists
+    const user = await User.findOne({ password_uuid });
+    if (!user) {
+      return res.status(400).json({ errors: [{ msg: "Something seems wrong with you" }] });
+    }
+
+
+    // Check if OTP is valid
+    const current_time = new Date();
+    if (current_time > user.password_otp_expiry) {
+      return res.status(400).json({ errors: [{ msg: "Link has expired" }] });
+    }
+
+    if (user.password_otp !== parseInt(otp)) {
+      return res.status(400).json({ errors: [{ msg: "Link is incorrect" }] });
+    }
+
+    // Check if passwords match
+    if (password !== confirm_password) {
+      return res.status(400).json({ errors: [{ msg: "Passwords do not match" }] });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    // Update user password
+    user.password = await bcrypt.hash(password, salt);
+    user.password_otp = null;
+    user.password_otp_expiry = null;
+    user.password_uuid = null;
+    await user.save();
+
+    //Return JWT
+    const payload = {
+      user: {
+        id: user.id,
+      },
+    };
+    const jwtsecret = process.env.JWT_SECRET;
+    jwt.sign(payload, jwtsecret, { expiresIn: 360000 }, (err, token) => {
+      if (err) throw err;
+      res.json({ token });
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");

@@ -29,7 +29,7 @@ router.post(
     }
 
     try {
-      const user = await User.findById(req.user.id).select("-password");
+      const user = await User.findById(req.user.id).select("-password").select("-otp").select("-otp_expiry").select("-password_otp").select("-password_otp_expiry").select("-password_uuid");
       const { article_name, article_text, article_type } = req.body;
 
       const newArticle = new Article({
