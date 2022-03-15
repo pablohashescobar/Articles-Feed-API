@@ -29,8 +29,21 @@ router.post(
     }
 
     try {
-      const user = await User.findById(req.user.id).select("-password").select("-otp").select("-otp_expiry").select("-password_otp").select("-password_otp_expiry").select("-password_uuid");
-      const { article_name, article_text, article_type } = req.body;
+      const user = await User.findById(req.user.id)
+        .select("-password")
+        .select("-otp")
+        .select("-otp_expiry")
+        .select("-password_otp")
+        .select("-password_otp_expiry")
+        .select("-password_uuid");
+      const { article_name, article_text, article_type, publish_date } =
+        req.body;
+
+      if (publish_date < Date.now()) {
+        return res
+          .status(400)
+          .json({ errors: [{ msg: "Publish date is invalid" }] });
+      }
 
       const newArticle = new Article({
         article_name,
@@ -38,6 +51,7 @@ router.post(
         article_type,
         username: user.firstname + " " + user.lastname,
         user: req.user.id,
+        publish_date: publish_date === "" ? Date.now() : publish_date,
       });
 
       const article = await newArticle.save();
@@ -55,41 +69,20 @@ router.post(
 // @access   Private
 router.get("/", auth, async (req, res) => {
   try {
-    const articles = await Article.find().sort({ date: -1 });
     const user = await User.findById(req.user.id);
-    let userArticles = [];
-    let userPreferedArticles = [];
-    //Remove the article if it has been blocked by the user
-    for (i in articles) {
-      if (articles[i].blocks.length > 0) {
-        for (j in articles[i].blocks) {
-          if (
-            req.user.id.toString() !== articles[i].blocks[j].user.toString()
-          ) {
-            userArticles.push(articles[i]);
-          }
-        }
-      } else {
-        userArticles.push(articles[i]);
-      }
-    }
 
-    for (let article in userArticles) {
-      for (articleType in userArticles[article].article_type) {
-        for (let userpref in user.article_preferences) {
-          if (
-            user.article_preferences[userpref] ===
-            userArticles[article].article_type[articleType]
-          ) {
-            if (!userPreferedArticles.includes(userArticles[article])) {
-              userPreferedArticles.push(userArticles[article]);
-            }
-          }
-        }
-      }
-    }
+    const query = await Article.find()
+      .where("article_type")
+      .in(user.article_preferences)
+      .where("blocks")
+      .nin(req.user.id)
+      .where("publish_date")
+      .lte(Date.now())
+      .sort({ publish_date: -1 });
 
-    res.json(userPreferedArticles);
+    const articles = await query.exec();
+
+    res.json(articles);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -102,7 +95,7 @@ router.get("/", auth, async (req, res) => {
 router.get("/me", auth, async (req, res) => {
   try {
     const articles = await Article.find({ user: req.user.id }).sort({
-      date: -1,
+      created_at: -1,
     });
 
     return res.json(articles);
