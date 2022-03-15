@@ -3,10 +3,12 @@ const nodemailer = require('nodemailer');
 const sendMailer = async (mailOptions) => {
 
     const sender = process.env.EMAIL_SENDER;
-    const password = process.env.EMAIL_PASSWORD;
+    const password = process.env.SENDGRID_KEY;
 
     const transporter = nodemailer.createTransport({
-        service: 'gmail',
+        host: 'smtp.sendgrid.net',
+        port: 465,
+        secure: true,
         auth: {
             user: sender,
             pass: password
