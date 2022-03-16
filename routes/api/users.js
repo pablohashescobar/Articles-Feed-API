@@ -188,15 +188,16 @@ router.put(
         user.password = await bcrypt.hash(password, salt);
       }
 
-      await user.save();
+      const updated_user = await user.save();
 
       return res.json({
-        firstname,
-        lastname,
-        email,
-        phone,
-        date_of_birth,
-        article_preferences,
+        firstname: updated_user.firstname,
+        lastname: updated_user.lastname,
+        email: updated_user.email,
+        phone: updated_user.phone,
+        date_of_birth: updated_user.date_of_birth,
+        article_preferences: updated_user.article_preferences,
+        is_verified: updated_user.is_verified,
       });
       //Catching Error
     } catch (error) {
