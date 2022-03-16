@@ -71,20 +71,18 @@ router.get("/", auth, async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
 
-    const query = await Article.find()
+    const articles = await Article.find({})
       .where("article_type")
       .in(user.article_preferences)
       .where("blocks")
-      .nin(req.user.id)
+      .nin({ "blocks.user": req.user.id })
       .where("publish_date")
       .lte(Date.now())
-      .sort({ publish_date: -1 });
-
-    const articles = await query.exec();
+      .sort({ publish_date: -1 }).exec();
 
     res.json(articles);
   } catch (err) {
-    console.error(err.message);
+    console.error(err);
     res.status(500).send("Server Error");
   }
 });
