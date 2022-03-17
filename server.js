@@ -12,8 +12,6 @@ connectDB();
 //Init middleware
 app.use(express.json({ extended: false }));
 
-
-
 app.use(cors());
 
 //Loggers
@@ -57,7 +55,6 @@ app.use(routeLogger);
 
 app.get("/", (req, res) => res.send("Welcome to Articles Feed API"));
 app.get("/status/", (req, res) => res.send("API up and Running"));
-
 
 //Defining Routes
 app.use("/api/users", require("./routes/api/users"));

@@ -4,11 +4,18 @@ const { check, validationResult } = require("express-validator");
 const auth = require("../../middleware/auth");
 const verify = require("../../middleware/verifiedCheck");
 const checkObjectId = require("../../middleware/checkObjectId");
+const multer = require("multer");
+const upload = multer({ dest: "uploads/" });
+const fs = require("fs");
+const util = require("util");
+const unlinkFile = util.promisify(fs.unlink);
+
+const { uploadFile, getFileStream } = require("../../utils/s3");
 
 const Article = require("../../models/Article");
 const User = require("../../models/User");
 
-// @route    POST api/article/create
+// @route    POST api/articles/create
 // @desc     Create a article
 // @access   Private
 router.post(
@@ -64,6 +71,27 @@ router.post(
   }
 );
 
+// @route    GET api/articles/image
+// @desc     Fetch image from s3 and render it at client side
+// @access   Private
+router.get("/image/:key", (req, res) => {
+  const key = req.params.key;
+  const readStream = getFileStream(key);
+  readStream.pipe(res);
+});
+
+// @route    POST api/articles/image
+// @desc     Upload image
+// @access   Private
+router.post("/image", [auth, upload.single("image")], async (req, res) => {
+  const file = req.file;
+  console.log(file);
+  const result = await uploadFile(file);
+  await unlinkFile(file.path)
+  console.log("S3", result);
+  res.send({ imagePath: `/images/${result.Key}` });
+});
+
 // @route    GET api/articles
 // @desc     Get all articles
 // @access   Private
@@ -78,7 +106,8 @@ router.get("/", auth, async (req, res) => {
       .nin({ "blocks.user": req.user.id })
       .where("publish_date")
       .lte(Date.now())
-      .sort({ publish_date: -1 }).exec();
+      .sort({ publish_date: -1 })
+      .exec();
 
     res.json(articles);
   } catch (err) {
