@@ -16,7 +16,7 @@ connectDB();
 app.use(express.json({ extended: false }));
 
 sentry.init({
-  dsn: "https://c7a9d680289041cb9bf83d253d437af8@o1169530.ingest.sentry.io/6262439",
+  dsn: process.env.SENTRY_DSN,
   integrations: [
     // enable HTTP calls tracing
     new sentry.Integrations.Http({ tracing: true }),
