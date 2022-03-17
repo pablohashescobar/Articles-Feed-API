@@ -2,10 +2,7 @@ require("dotenv").config();
 
 const express = require("express");
 const connectDB = require("./config/db");
-const sentry = require("@sentry/node");
-const tracing = require("@sentry/tracing");
 const cors = require("cors");
-const path = require("path");
 const chalk = require("chalk");
 //Initialize express
 const app = express();
@@ -15,26 +12,7 @@ connectDB();
 //Init middleware
 app.use(express.json({ extended: false }));
 
-sentry.init({
-  dsn: process.env.SENTRY_DSN,
-  integrations: [
-    // enable HTTP calls tracing
-    new sentry.Integrations.Http({ tracing: true }),
-    // enable Express.js middleware tracing
-    new tracing.Integrations.Express({ app }),
-  ],
 
-  // Set tracesSampleRate to 1.0 to capture 100%
-  // of transactions for performance monitoring.
-  // We recommend adjusting this value in production
-  tracesSampleRate: 1.0,
-});
-
-// RequestHandler creates a separate execution context using domains, so that every
-// transaction/span/breadcrumb is attached to its own Hub instance
-app.use(sentry.Handlers.requestHandler());
-// TracingHandler creates a trace for every incoming request
-app.use(sentry.Handlers.tracingHandler());
 
 app.use(cors());
 
@@ -79,22 +57,12 @@ app.use(routeLogger);
 
 app.get("/", (req, res) => res.send("Welcome to Articles Feed API"));
 app.get("/status/", (req, res) => res.send("API up and Running"));
-app.get("/debug-sentry", function mainHandler(req, res) {
-    throw new Error("My first Sentry error!");
-  });
+
 
 //Defining Routes
 app.use("/api/users", require("./routes/api/users"));
 app.use("/api/auth", require("./routes/api/auth"));
 app.use("/api/articles", require("./routes/api/articles"));
-
-app.use(sentry.Handlers.errorHandler());
-app.use(function onError(err, req, res, next) {
-  // The error id is attached to `res.sentry` to be returned
-  // and optionally displayed to the user for support.
-  res.statusCode = 500;
-  res.end(res.sentry + "\n");
-});
 
 const PORT = process.env.PORT || 5000;
 
