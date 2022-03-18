@@ -2,16 +2,17 @@ require("dotenv").config();
 
 const express = require("express");
 const connectDB = require("./config/db");
+const initAgenda = require("./jobs/ajenda");
 const cors = require("cors");
 const chalk = require("chalk");
-//Initialize express
-const app = express();
+
 //connect to DB
 connectDB();
+//Initialize express
+const app = express();
 
 //Init middleware
 app.use(express.json({ extended: false }));
-
 app.use(cors());
 
 //Loggers

@@ -1,13 +1,14 @@
 const express = require("express");
 const router = express.Router();
 const jwt = require("jsonwebtoken");
-const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4 } = require("uuid");
 const { check, validationResult } = require("express-validator");
 const checkObjectId = require("../../middleware/checkObjectId");
 const bcrypt = require("bcryptjs");
 
 const User = require("../../models/User");
-const sendMailer = require("../../config/mailer");
+const schedule = require("../../jobs/scheduler");
+
 //middleware
 const auth = require("../../middleware/auth");
 
@@ -101,7 +102,7 @@ router.post(
       };
 
       //Send mail
-      await sendMailer(mailOptions);
+      await schedule.sendOtp(mailOptions);
 
       //Return JWT
       const payload = {
@@ -273,11 +274,11 @@ router.get("/resend-otp", [auth], async (req, res) => {
       from: "devinfoster1210@gmail.com",
       to: user.email,
       subject: "Verify your account",
-      text: `Your OTP is ${otp}`,
+      text: `Welcome to the Articles Feed. Your OTP is ${otp}`,
     };
 
     //Send mail
-    await sendMailer(mailOptions);
+    await schedule.sendOtp(mailOptions);
 
     return res.json({
       message: "OTP sent to your email",
@@ -344,7 +345,6 @@ router.put("/follow/:id", [auth, checkObjectId], async (req, res) => {
   }
 });
 
-
 router.post("/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
@@ -356,7 +356,7 @@ router.post("/forgot-password", async (req, res) => {
     }
     const current_time = new Date();
     const otp_expiry = current_time.setMinutes(current_time.getMinutes() + 10);
-    const otp = Math.floor(Math.random() * 1000000)
+    const otp = Math.floor(Math.random() * 1000000);
     const user_uuid = uuidv4();
 
     user.password_otp = otp;
@@ -365,9 +365,7 @@ router.post("/forgot-password", async (req, res) => {
     await user.save();
 
     // Send the email
-    const resetUrl = `${req.protocol}://${req.get(
-      "host"
-    )}/reset-password/${user_uuid}/${otp}`;
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password/${user_uuid}/${otp}`;
 
     const mailOptions = {
       from: "devinfoster1210@gmail.com",
@@ -379,7 +377,7 @@ router.post("/forgot-password", async (req, res) => {
       If you did not request this, please ignore this email and your password will remain unchanged.\n`,
     };
 
-    await sendMailer(mailOptions);
+    await schedule.sendForgotPasswordMail(mailOptions);
 
     res.json({ msg: "Email sent" });
   } catch (err) {
@@ -396,9 +394,10 @@ router.post("/reset-password/:password_uuid/:otp", async (req, res) => {
     // See if user exists
     const user = await User.findOne({ password_uuid });
     if (!user) {
-      return res.status(400).json({ errors: [{ msg: "Something seems wrong with you" }] });
+      return res
+        .status(400)
+        .json({ errors: [{ msg: "Something seems wrong with you" }] });
     }
-
 
     // Check if OTP is valid
     const current_time = new Date();
@@ -412,7 +411,9 @@ router.post("/reset-password/:password_uuid/:otp", async (req, res) => {
 
     // Check if passwords match
     if (password !== confirm_password) {
-      return res.status(400).json({ errors: [{ msg: "Passwords do not match" }] });
+      return res
+        .status(400)
+        .json({ errors: [{ msg: "Passwords do not match" }] });
     }
 
     const salt = await bcrypt.genSalt(10);

@@ -5,6 +5,7 @@ const auth = require("../../middleware/auth");
 const verify = require("../../middleware/verifiedCheck");
 const checkObjectId = require("../../middleware/checkObjectId");
 const multer = require("multer");
+const schedule = require("../../jobs/scheduler");
 const upload = multer({ dest: "uploads/" });
 const fs = require("fs");
 const util = require("util");
@@ -85,10 +86,16 @@ router.get("/image/:key", (req, res) => {
 // @access   Private
 router.post("/image", [auth, upload.single("image")], async (req, res) => {
   const file = req.file;
-  console.log(file);
+
   const result = await uploadFile(file);
   await unlinkFile(file.path)
-  console.log("S3", result);
+
+  await schedule.optimizeImage(
+    {
+      key: result.key,
+    }
+  )
+
   res.send({ imagePath: `/images/${result.Key}` });
 });
 
