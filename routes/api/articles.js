@@ -88,13 +88,11 @@ router.post("/image", [auth, upload.single("image")], async (req, res) => {
   const file = req.file;
 
   const result = await uploadFile(file);
-  await unlinkFile(file.path)
+  await unlinkFile(file.path);
 
-  await schedule.optimizeImage(
-    {
-      key: result.key,
-    }
-  )
+  await schedule.optimizeImage({
+    S3_URL: result.Location,
+  });
 
   res.send({ imagePath: `/images/${result.Key}` });
 });

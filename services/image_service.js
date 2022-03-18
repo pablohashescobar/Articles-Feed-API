@@ -10,7 +10,7 @@ const optimizeImage = async (data) => {
     };
 
     const response = await axios.post(
-      process.env.IMAGE_OPTIMIZER_URL,
+      `${process.env.IMAGE_OPTIMIZER_URL}/optimize/`,
       data,
       config
     );
