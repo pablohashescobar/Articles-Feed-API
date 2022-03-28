@@ -4,15 +4,29 @@ const { check, validationResult } = require("express-validator");
 const auth = require("../../middleware/auth");
 const verify = require("../../middleware/verifiedCheck");
 const checkObjectId = require("../../middleware/checkObjectId");
-const multer = require("multer");
 const schedule = require("../../jobs/scheduler");
-const upload = multer({ dest: "uploads/" });
 const fs = require("fs");
 const util = require("util");
 const unlinkFile = util.promisify(fs.unlink);
 
 const { uploadFile, getFileStream } = require("../../utils/s3");
 
+// Multer config
+const multer = require("multer");
+const path = require("path");
+
+var storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname)); //Appending extension
+  },
+});
+
+var upload = multer({ storage: storage });
+
+// Import Models
 const Article = require("../../models/Article");
 const User = require("../../models/User");
 
@@ -78,7 +92,8 @@ router.post(
 router.get("/image/:key", (req, res) => {
   const key = req.params.key;
   const readStream = getFileStream(key);
-  readStream.pipe(res);
+  console.log("ReadStream:", readStream);
+  res.send(readStream);
 });
 
 // @route    POST api/articles/image
@@ -94,7 +109,7 @@ router.post("/image", [auth, upload.single("image")], async (req, res) => {
     S3_URL: result.Location,
   });
 
-  res.send({ imagePath: `/images/${result.Key}` });
+  res.send(result.Location);
 });
 
 // @route    GET api/articles
