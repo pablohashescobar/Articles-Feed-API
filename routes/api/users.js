@@ -91,14 +91,19 @@ router.post(
 
       user.password = await bcrypt.hash(password, salt);
 
-      await user.save();
+      const user_created = await user.save();
+
+      const verifyUrl = `${process.env.FRONTEND_URL}/verify-account/${user_created.uuid}/${otp}`;
 
       //Send OTP to user's email
       const mailOptions = {
         from: "devinfoster1210@gmail.com",
         to: email,
         subject: "Verify your account",
-        text: `Your OTP is ${otp}`,
+        text: `Welcome to Articles Feed to create articles you need to verify your account\n\n
+      Please click on the following link, or paste this into your browser to complete the process:\n\n
+      ${verifyUrl}\n\n
+      or paste the following otp in settings page ${otp}\n`,
       };
 
       //Send mail
