@@ -100,16 +100,24 @@ router.get("/image/:key", (req, res) => {
 // @desc     Upload image
 // @access   Private
 router.post("/image", [auth, upload.single("image")], async (req, res) => {
-  const file = req.file;
+  try {
+    const file = req.file;
 
-  const result = await uploadFile(file);
-  await unlinkFile(file.path);
+    const result = await uploadFile(file);
+    await unlinkFile(file.path);
 
-  await schedule.optimizeImage({
-    S3_URL: result.Location,
-  });
+    await schedule.optimizeImage({
+      S3_URL: result.Location,
+    });
 
-  res.send(result.Location);
+    res.status(201).json({
+      key: result.key,
+      url: result.Location,
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
 });
 
 // @route    GET api/articles
