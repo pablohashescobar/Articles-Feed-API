@@ -4,11 +4,33 @@ const { check, validationResult } = require("express-validator");
 const auth = require("../../middleware/auth");
 const verify = require("../../middleware/verifiedCheck");
 const checkObjectId = require("../../middleware/checkObjectId");
+const schedule = require("../../jobs/scheduler");
+const fs = require("fs");
+const util = require("util");
+const unlinkFile = util.promisify(fs.unlink);
 
+const { uploadFile, getFileStream } = require("../../utils/s3");
+
+// Multer config
+const multer = require("multer");
+const path = require("path");
+
+var storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/");
+  },
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + path.extname(file.originalname)); //Appending extension
+  },
+});
+
+var upload = multer({ storage: storage });
+
+// Import Models
 const Article = require("../../models/Article");
 const User = require("../../models/User");
 
-// @route    POST api/article/create
+// @route    POST api/articles/create
 // @desc     Create a article
 // @access   Private
 router.post(
@@ -29,8 +51,21 @@ router.post(
     }
 
     try {
-      const user = await User.findById(req.user.id).select("-password");
-      const { article_name, article_text, article_type } = req.body;
+      const user = await User.findById(req.user.id)
+        .select("-password")
+        .select("-otp")
+        .select("-otp_expiry")
+        .select("-password_otp")
+        .select("-password_otp_expiry")
+        .select("-password_uuid");
+      const { article_name, article_text, article_type, publish_date } =
+        req.body;
+
+      if (publish_date < Date.now()) {
+        return res
+          .status(400)
+          .json({ errors: [{ msg: "Publish date is invalid" }] });
+      }
 
       const newArticle = new Article({
         article_name,
@@ -38,6 +73,7 @@ router.post(
         article_type,
         username: user.firstname + " " + user.lastname,
         user: req.user.id,
+        publish_date: publish_date === "" ? Date.now() : publish_date,
       });
 
       const article = await newArticle.save();
@@ -50,48 +86,60 @@ router.post(
   }
 );
 
+// @route    GET api/articles/image
+// @desc     Fetch image from s3 and render it at client side
+// @access   Private
+router.get("/image/:key", (req, res) => {
+  const key = req.params.key;
+  const readStream = getFileStream(key);
+  console.log("ReadStream:", readStream);
+  res.send(readStream);
+});
+
+// @route    POST api/articles/image
+// @desc     Upload image
+// @access   Private
+router.post("/image", [auth, upload.single("image")], async (req, res) => {
+  try {
+    const file = req.file;
+
+    const result = await uploadFile(file);
+    await unlinkFile(file.path);
+
+    await schedule.optimizeImage({
+      S3_URL: result.Location,
+    });
+
+    res.status(201).json({
+      key: result.key,
+      url: result.Location,
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+});
+
 // @route    GET api/articles
 // @desc     Get all articles
 // @access   Private
 router.get("/", auth, async (req, res) => {
   try {
-    const articles = await Article.find().sort({ date: -1 });
     const user = await User.findById(req.user.id);
-    let userArticles = [];
-    let userPreferedArticles = [];
-    //Remove the article if it has been blocked by the user
-    for (i in articles) {
-      if (articles[i].blocks.length > 0) {
-        for (j in articles[i].blocks) {
-          if (
-            req.user.id.toString() !== articles[i].blocks[j].user.toString()
-          ) {
-            userArticles.push(articles[i]);
-          }
-        }
-      } else {
-        userArticles.push(articles[i]);
-      }
-    }
 
-    for (let article in userArticles) {
-      for (articleType in userArticles[article].article_type) {
-        for (let userpref in user.article_preferences) {
-          if (
-            user.article_preferences[userpref] ===
-            userArticles[article].article_type[articleType]
-          ) {
-            if (!userPreferedArticles.includes(userArticles[article])) {
-              userPreferedArticles.push(userArticles[article]);
-            }
-          }
-        }
-      }
-    }
+    const articles = await Article.find({})
+      .where("article_type")
+      .in(user.article_preferences)
+      .where("blocks.user")
+      .ne(req.user.id)
+      .where("publish_date")
+      .lte(Date.now())
+      .sort({ publish_date: -1 })
+      .exec();
 
-    res.json(userPreferedArticles);
+    res.json(articles);
   } catch (err) {
-    console.error(err.message);
+    console.error(err);
     res.status(500).send("Server Error");
   }
 });
@@ -102,7 +150,7 @@ router.get("/", auth, async (req, res) => {
 router.get("/me", auth, async (req, res) => {
   try {
     const articles = await Article.find({ user: req.user.id }).sort({
-      date: -1,
+      created_at: -1,
     });
 
     return res.json(articles);
